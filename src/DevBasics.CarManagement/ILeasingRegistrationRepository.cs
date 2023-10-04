@@ -3,10 +3,10 @@ using System.Threading.Tasks;
 
 namespace DevBasics.CarManagement
 {
-    public interface ILeasingRegistrationRepository
+    /// <summary>
+    /// Wird in Dependencies verwendet, deshalb keine weitere Änderung möglich
+    /// </summary>
+    public interface ILeasingRegistrationRepository : IGetAppSettingAsyncCommand, IUpdateCarAsyncCommand, IInsertHistoryAsyncCommand
     {
-        Task<AppSettingDto> GetAppSettingAsync(string salesOrgIdentifier, CarBrand requestOrigin);
-        Task<int> InsertHistoryAsync(CarRegistrationDto dbCar, string userName, string transactionStateName = null, string transactionTypeName = null);
-        Task<bool> UpdateCarAsync(CarRegistrationDto dbCar);
     }
 }

@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using DevBasics.CarManagement.Dependencies;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -8,31 +9,11 @@ namespace DevBasics.CarManagement
 {
     internal sealed class Program
     {
-        internal static async Task Main()
+        internal static async Task Main(string[] args)
         {
-            var model = new CarRegistrationModel();
-            var configuration = new MapperConfiguration(cnfgrtn => model.CreateMappings(cnfgrtn));
-            var mapper = configuration.CreateMapper();
-
-            var bulkRegistrationServiceMock = new BulkRegistrationServiceMock();
-            var leasingRegistrationRepository = new LeasingRegistrationRepository();
-            var carRegistrationRepositoryMock = new CarRegistrationRepository(
-                leasingRegistrationRepository,
-                bulkRegistrationServiceMock,
-                mapper);
-
-            var service = new CarManagementService(
-                mapper,
-                new CarManagementSettings(),
-                new HttpHeaderSettings(),
-                new KowoLeasingApiClientMock(),
-                new TransactionStateServiceMock(),
-                bulkRegistrationServiceMock,
-                new RegistrationDetailServiceMock(),
-                leasingRegistrationRepository,
-                carRegistrationRepositoryMock);
-
-            var result = await service.RegisterCarsAsync(
+            var serviceProvider = RegisterServices();
+            var carManagementService = serviceProvider.GetRequiredService<ICarManagementService>();
+            await carManagementService.RegisterCarsAsync(
                 new RegisterCarsModel
                 {
                     CompanyId = "Company",
@@ -51,7 +32,40 @@ namespace DevBasics.CarManagement
                     }
                 },
                 false,
-                new Claims());
+                new Claims()
+            );
+        }
+
+        internal static ServiceProvider RegisterServices()
+        {
+            var services = new ServiceCollection();
+            services.AddTransient<CarRegistrationModel>();
+            services.AddTransient<HttpHeaderSettings>();
+            services.AddAutoMapper(typeof(CarRegistrationModel));
+            services.AddTransient<IMapper>(provider =>
+            {
+                var model = provider.GetRequiredService<CarRegistrationModel>();
+                var configuration = new MapperConfiguration(conf => model.CreateMappings(conf));
+                return configuration.CreateMapper();
+            });
+            services.AddTransient<IBulkRegistrationService, BulkRegistrationServiceMock>();
+            services.AddTransient<ICarPoolNumbeGenerator, ToyotaCarPoolNumberGenerator>();
+            services.AddTransient<ICarPoolNumbeGenerator, FordCarPoolNumberGenerator>();
+            services.AddTransient<ILeasingRegistrationRepository, LeasingRegistrationRepository>();
+            services.AddTransient<ICarRegistrationRepository>(provider =>
+            {
+                var leasingRegistrationRepository = provider.GetRequiredService<ILeasingRegistrationRepository>();
+                var bulkRegistrationServiceMock = provider.GetRequiredService<IBulkRegistrationService>();
+                var mapper = provider.GetRequiredService<IMapper>();
+                return new CarRegistrationRepository(leasingRegistrationRepository, bulkRegistrationServiceMock, mapper);
+            });
+            services.AddTransient<IKowoLeasingApiClient, KowoLeasingApiClientMock>();
+            services.AddTransient<ITransactionStateService, TransactionStateServiceMock>();
+            services.AddTransient<IRegistrationDetailService, RegistrationDetailServiceMock>();
+            services.AddTransient<ICarManagementService, CarManagementService>();
+
+            var serviceProvider = services.BuildServiceProvider();
+            return serviceProvider;
         }
     }
 }
